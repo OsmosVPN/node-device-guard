@@ -1,10 +1,10 @@
 # node-device-guard
 
-Агент, устанавливаемый на каждую VPN-ноду. Получает список IP-адресов от panel-device-guard и мгновенно сбрасывает их активные соединения через `conntrack`.
+Агент, устанавливаемый на каждую VPN-ноду. Получает список IP-адресов от panel-device-guard и мгновенно сбрасывает их активные соединения через `ss -K` (RST-пакет).
 
 ## Зачем
 
-Когда panel-device-guard банит пользователя (ставит `status=disabled` в Marzban), уже установленные TCP-соединения продолжают работать. node-device-guard решает это: принудительно дропает соединения через `conntrack -D -s <ip>` в момент бана.
+Когда panel-device-guard банит пользователя (ставит `status=disabled` в Marzban), уже установленные TCP-соединения продолжают работать. node-device-guard решает это: принудительно рвёт соединения через `ss -K dst <ip>` (RST-пакет) в момент бана. Работает с Xray/VLESS и любым другим TCP-прокси.
 
 ## Как работает
 
@@ -12,7 +12,7 @@
 panel-device-guard (бан)
     └─ POST /kick {"ips": ["1.2.3.4", ...]}
            └─ node-device-guard
-                  └─ conntrack -D -s 1.2.3.4   (сброс соединения)
+                  └─ ss -K dst 1.2.3.4   (RST → соединение немедленно рвётся)
 ```
 
 ## API
@@ -51,14 +51,14 @@ Content-Type: application/json
 
 Возможные статусы для каждого IP:
 
-| Статус              | Описание                                |
-| ------------------- | --------------------------------------- |
-| `ok`                | Соединение успешно сброшено             |
-| `not_found`         | Активных записей в conntrack не найдено |
-| `invalid`           | Невалидный IP-адрес                     |
-| `timeout`           | conntrack завис (>5 сек)                |
-| `conntrack_missing` | `conntrack-tools` не установлен на ноде |
-| `error`             | Прочая ошибка                           |
+| Статус       | Описание                                   |
+| ------------ | ------------------------------------------ |
+| `ok`         | Соединение успешно сброшено (RST отправлен)|
+| `not_found`  | Активных соединений с этим IP не найдено   |
+| `invalid`    | Невалидный IP-адрес                        |
+| `timeout`    | `ss` завис (>5 сек)                        |
+| `ss_missing` | `iproute2` не установлен на ноде           |
+| `error`      | Прочая ошибка                              |
 
 ## Переменные окружения
 
@@ -75,12 +75,12 @@ cp .env.example .env
 docker compose up -d
 ```
 
-> `network_mode: host` и `cap_add: NET_ADMIN` обязательны — иначе conntrack не увидит соединения хоста.
+> `network_mode: host` и `cap_add: NET_ADMIN` обязательны — иначе `ss -K` не увидит соединения хоста.
 
 ## Деплой без Docker
 
 ```bash
-apt install -y conntrack python3 python3-pip
+apt install -y iproute2 python3 python3-pip
 pip3 install aiohttp
 
 NODE_KICK_PORT=62010 NODE_KICK_TOKEN=your-secret python3 agent.py
@@ -111,7 +111,7 @@ systemctl enable --now node-device-guard
 
 ## Требования на ноде
 
-- Linux с `conntrack-tools` (`apt install conntrack-tools`)
+- Linux с `iproute2` (`apt install iproute2`, обычно уже предустановлен)
 - Python 3.10+ или Docker
 - Порт `NODE_KICK_PORT` доступен только с сервера panel-device-guard (лучше закрыть файрволом для всех остальных)
 
@@ -119,4 +119,4 @@ systemctl enable --now node-device-guard
 
 - Всегда задавай `NODE_KICK_TOKEN` — случайную строку не менее 32 символов
 - Закрой порт файрволом: разрешай только IP-адрес сервера с panel-device-guard
-- Агент не принимает shell-команды — IP валидируется через `ipaddress.ip_address()` перед передачей в conntrack
+- Агент не принимает shell-команды — IP валидируется через `ipaddress.ip_address()` перед передачей в `ss`
