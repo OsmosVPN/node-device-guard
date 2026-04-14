@@ -61,28 +61,27 @@ async def handle_kick(request: web.Request) -> web.Response:
 
         try:
             proc = await asyncio.create_subprocess_exec(
-                "conntrack", "-D", "-s", addr,
+                "ss", "-K", f"dst {addr}",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             _, stderr = await asyncio.wait_for(proc.communicate(), timeout=CONNTRACK_TIMEOUT)
             rc = proc.returncode
-            # conntrack returns 1 if no entries found — that's fine
             if rc == 0:
                 logger.info("kicked ip=%s", addr)
                 results[addr] = "ok"
             else:
-                logger.debug("conntrack ip=%s rc=%s stderr=%s", addr, rc, stderr.decode().strip())
+                logger.debug("ss -K ip=%s rc=%s stderr=%s", addr, rc, stderr.decode().strip())
                 results[addr] = "not_found"
         except asyncio.TimeoutError:
-            logger.error("conntrack timeout ip=%s", addr)
+            logger.error("ss -K timeout ip=%s", addr)
             results[addr] = "timeout"
         except FileNotFoundError:
-            logger.error("conntrack not found — install conntrack-tools on this node")
-            results[addr] = "conntrack_missing"
+            logger.error("ss not found — install iproute2 on this node")
+            results[addr] = "ss_missing"
             break
         except Exception as exc:
-            logger.error("conntrack error ip=%s: %r", addr, exc)
+            logger.error("ss -K error ip=%s: %r", addr, exc)
             results[addr] = "error"
 
     return web.json_response({"results": results})
