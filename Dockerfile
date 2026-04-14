@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r /a
 
 COPY agent.py /app/agent.py
 
-ENV NODE_KICK_PORT=9977
+ENV NODE_KICK_PORT=62010
 ENV NODE_KICK_TOKEN=""
 
 CMD ["python", "agent.py"]
