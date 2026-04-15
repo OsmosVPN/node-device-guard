@@ -77,6 +77,14 @@ docker compose up -d
 
 > `network_mode: host` и `cap_add: NET_ADMIN` обязательны — иначе `ss -K` не увидит соединения хоста.
 
+Проверить healthcheck контейнера:
+
+```bash
+docker compose ps
+```
+
+В колонке `STATE` должен быть статус `healthy`.
+
 ## Деплой без Docker
 
 ```bash

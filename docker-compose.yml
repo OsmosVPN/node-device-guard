@@ -3,8 +3,8 @@ services:
     build: .
     container_name: node-device-guard
     restart: unless-stopped
-    network_mode: host # нужен для conntrack (доступ к conntrack на хосте)
+    network_mode: host # нужен для ss -K (доступ к сетевым соединениям хоста)
     cap_add:
-      - NET_ADMIN # требуется для conntrack
+      - NET_ADMIN # требуется для ss -K
     env_file:
       - .env

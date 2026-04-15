@@ -2,13 +2,13 @@
 """
 node-device-guard — runs on each VPN node.
 Receives a list of IPs to kick via HTTP POST /kick and calls:
-    conntrack -D -s <ip>
-to immediately drop existing connections for banned users.
+ss -K dst <ip> to immediately drop existing connections for banned users.
 
 Environment variables:
-  NODE_KICK_PORT   (default: 9977) — port to listen on
-  NODE_KICK_TOKEN  (required)      — shared secret, checked as Bearer token
+NODE_KICK_PORT (default: 62010) — port to listen on
+NODE_KICK_TOKEN (optional) — shared secret, checked as Bearer token
 """
+
 import asyncio
 import hmac
 import ipaddress
@@ -18,8 +18,8 @@ import os
 from aiohttp import web
 
 TOKEN: str = os.getenv("NODE_KICK_TOKEN", "").strip()
-PORT: int = int(os.getenv("NODE_KICK_PORT", "9977"))
-CONNTRACK_TIMEOUT: float = 5.0
+PORT: int = int(os.getenv("NODE_KICK_PORT", "62010"))
+SS_TIMEOUT: float = 5.0
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +61,13 @@ async def handle_kick(request: web.Request) -> web.Response:
 
         try:
             proc = await asyncio.create_subprocess_exec(
-                "ss", "-K", f"dst {addr}",
+                "ss",
+                "-K",
+                f"dst {addr}",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=CONNTRACK_TIMEOUT)
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=SS_TIMEOUT)
             rc = proc.returncode
             if rc == 0:
                 logger.info("kicked ip=%s", addr)
@@ -96,7 +98,6 @@ def main() -> None:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-
     if not TOKEN:
         logger.warning("NODE_KICK_TOKEN is not set — /kick endpoint is unprotected!")
 
